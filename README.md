@@ -51,6 +51,8 @@ that never reads. There's one in this repo.
 
 ## Contributing a report
 
+Full guide: [CONTRIBUTING.md](CONTRIBUTING.md).
+
 The whole project is the data. One report takes a minute:
 
 1. Run the check command above.

@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "outputDirectory": "docs"
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "destination": "https://shravankb301.github.io/willitddc/$1",
+      "permanent": true
+    }
+  ]
 }

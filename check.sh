@@ -245,7 +245,7 @@ $MAC_MODEL · $CHIP · macOS $MACOS
 
   GRADE: $GRADE — $TAG
 
-willitddc.com
+shravankb301.github.io/willitddc
 EOF
   echo
 
