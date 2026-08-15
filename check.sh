@@ -40,6 +40,10 @@ echo
 [[ "$(uname -s)" == "Darwin" ]] || { echo "${red}macOS only.${reset}"; exit 1; }
 
 MAC_MODEL="$(sysctl -n hw.model 2>/dev/null || echo unknown)"
+# The identifier (Mac16,10) is stable but unreadable; the marketing name is
+# what people recognise, and what keeps one machine from being recorded twice.
+MAC_NAME="$(system_profiler SPHardwareDataType 2>/dev/null | sed -n 's/ *Model Name: *//p' | head -1)"
+MAC_NAME="${MAC_NAME:-$MAC_MODEL}"
 CHIP="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo unknown)"
 MACOS="$(sw_vers -productVersion 2>/dev/null || echo unknown)"
 
@@ -76,6 +80,7 @@ echo
 emit_report() {
   cat <<EOF
 --- will-it-ddc report ---
+mac_name:    $MAC_NAME
 mac_model:   $MAC_MODEL
 chip:        $CHIP
 macos:       $MACOS

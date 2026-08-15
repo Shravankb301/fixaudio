@@ -272,6 +272,8 @@ cmd_report() {
   local mac chip macos display idx v c r reads vol
 
   mac="$(sysctl -n hw.model 2>/dev/null || echo unknown)"
+  name="$(system_profiler SPHardwareDataType 2>/dev/null | sed -n 's/ *Model Name: *//p' | head -1)"
+  name="${name:-$mac}"
   chip="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo unknown)"
   macos="$(sw_vers -productVersion 2>/dev/null || echo unknown)"
 
@@ -292,6 +294,7 @@ cmd_report() {
 
   cat <<EOF
 --- will-it-ddc report ---
+mac_name:    $name
 mac_model:   $mac
 chip:        $chip
 macos:       $macos

@@ -99,6 +99,7 @@ def main():
 
     display = field(report, "display")
     mac_model = field(report, "mac_model")
+    mac_name = field(report, "mac_name")
     chip = field(report, "chip")
     macos = field(report, "macos")
     visible = field(report, "ddc_visible").lower().startswith("y")
@@ -128,7 +129,9 @@ def main():
     brand = parts[0]
     model = parts[1] if len(parts) > 1 else display or monitor
 
-    mac = f"{mac_model}" + (f" ({chip.replace('Apple ', '')})" if chip else "")
+    # Readable name when the check provided one, identifier otherwise.
+    base = mac_name or mac_model
+    mac = base + (f" ({chip.replace('Apple ', '')})" if chip else "")
 
     entry = {
         "mac": clean(mac),
