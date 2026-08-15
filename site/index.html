@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fixaudio — volume keys for monitors macOS won't control</title>
+<meta name="description" content="macOS greys out the volume slider when audio goes to a monitor over HDMI or DisplayPort. fixaudio gives your volume keys back, using DDC/CI.">
+<meta property="og:title" content="fixaudio">
+<meta property="og:description" content="Volume keys that work when your Mac says they can't.">
+<meta property="og:type" content="website">
+<style>
+  :root {
+    --bg: #0c0d10;
+    --bg-raised: #14161b;
+    --bg-sunken: #08090b;
+    --line: #24272f;
+    --line-soft: #1b1e25;
+    --text: #e8eaed;
+    --text-dim: #9aa1ad;
+    --text-faint: #6b7280;
+    --accent: #6ee7a8;
+    --accent-dim: #2f6b4f;
+    --warn: #f0b866;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 24px; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    background: var(--bg-raised);
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 0.1em 0.4em;
+  }
+
+  /* --- hero --- */
+
+  header { padding: 88px 0 56px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-size: clamp(38px, 7vw, 60px);
+    line-height: 1.08;
+    letter-spacing: -0.025em;
+    margin: 0 0 20px;
+    font-weight: 640;
+  }
+
+  .lede {
+    font-size: clamp(17px, 2.4vw, 20px);
+    color: var(--text-dim);
+    margin: 0 0 8px;
+    max-width: 62ch;
+  }
+
+  /* --- install --- */
+
+  .install {
+    margin: 36px 0 14px;
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .install pre {
+    margin: 0;
+    padding: 15px 18px;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    color: var(--text);
+    overflow-x: auto;
+    flex: 1;
+    white-space: pre;
+  }
+  .install pre::-webkit-scrollbar { height: 6px; }
+  .install pre::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+  .install .prompt { color: var(--text-faint); user-select: none; }
+
+  .copy {
+    flex-shrink: 0;
+    border: none;
+    border-left: 1px solid var(--line);
+    background: var(--bg-raised);
+    color: var(--text-dim);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0 18px;
+    cursor: pointer;
+    transition: color .15s, background .15s;
+  }
+  .copy:hover { background: #1b1e25; color: var(--text); }
+  .copy.done { color: var(--accent); }
+
+  .subnote { font-size: 14px; color: var(--text-faint); margin: 0; }
+
+  /* --- the demo panel --- */
+
+  .demo {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 56px 0 8px;
+  }
+  @media (max-width: 620px) { .demo { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px;
+  }
+
+  .panel h3 {
+    margin: 0 0 2px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .panel .cap { font-size: 12.5px; color: var(--text-faint); margin: 0 0 16px; }
+  .panel.bad h3 { color: var(--warn); }
+  .panel.good h3 { color: var(--accent); }
+
+  .slider { display: flex; align-items: center; gap: 10px; }
+  .slider .ico { font-size: 13px; opacity: .5; }
+  .panel.good .slider .ico { opacity: .95; }
+
+  .track {
+    flex: 1;
+    height: 7px;
+    border-radius: 4px;
+    background: #2a2e37;
+    position: relative;
+  }
+  .fill {
+    position: absolute; inset: 0 auto 0 0;
+    border-radius: 4px;
+    background: var(--accent);
+  }
+  .knob {
+    position: absolute; top: 50%;
+    width: 15px; height: 15px; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.5);
+  }
+  .panel.bad .track { background: #202329; }
+  .panel.bad .fill { background: #333842; }
+  .panel.bad .knob { background: #4a5060; }
+
+  .keys { margin-top: 16px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-faint); }
+  .kbd {
+    font-family: var(--mono); font-size: 11.5px;
+    border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 5px; padding: 2px 7px; color: var(--text-dim);
+    background: var(--bg-sunken);
+  }
+  .panel.good .kbd { color: var(--text); border-color: var(--accent-dim); }
+
+  /* --- sections --- */
+
+  section { padding: 52px 0; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: none; }
+
+  h2 {
+    font-size: 24px;
+    letter-spacing: -0.015em;
+    margin: 0 0 16px;
+    font-weight: 620;
+  }
+
+  p { margin: 0 0 16px; color: var(--text-dim); }
+  p.tight { margin-bottom: 8px; }
+  strong { color: var(--text); font-weight: 600; }
+
+  ul { margin: 0 0 16px; padding-left: 0; list-style: none; }
+  li {
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    padding-left: 26px;
+    position: relative;
+  }
+  li::before {
+    content: "";
+    position: absolute; left: 6px; top: 11px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent-dim);
+  }
+
+  .callout {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--accent-dim);
+    border-radius: 0 10px 10px 0;
+    padding: 18px 20px;
+    margin: 0 0 16px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  table { width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 14.5px; display: block; overflow-x: auto; }
+  tbody { display: table; width: 100%; }
+  td { padding: 9px 14px 9px 0; border-bottom: 1px solid var(--line-soft); vertical-align: top; color: var(--text-dim); }
+  td:first-child { white-space: nowrap; width: 1%; }
+  td code { background: none; border: none; padding: 0; color: var(--text); }
+
+  footer {
+    padding: 44px 0 72px;
+    border-top: 1px solid var(--line-soft);
+    color: var(--text-faint);
+    font-size: 14px;
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">macOS · Apple Silicon</div>
+  <h1>Volume keys that work when your Mac says they can&rsquo;t.</h1>
+  <p class="lede">
+    Send audio to your monitor over HDMI or DisplayPort and macOS greys out the
+    volume slider. The keys stop working. Your only control is the joystick on
+    the back of the monitor.
+  </p>
+
+  <div class="install">
+    <pre><span class="prompt">$ </span><span id="cmd">curl -fsSL https://raw.githubusercontent.com/shravankb301/fixaudio/main/install.sh | bash</span></pre>
+    <button class="copy" id="copy">Copy</button>
+  </div>
+  <p class="subnote">Apple Silicon, macOS 13+. MIT licensed.</p>
+
+  <div class="demo">
+    <div class="panel bad">
+      <h3>Without fixaudio</h3>
+      <p class="cap">Output: your monitor</p>
+      <div class="slider">
+        <span class="ico">🔈</span>
+        <div class="track"><div class="fill" style="width:62%"></div><div class="knob" style="left:62%"></div></div>
+        <span class="ico">🔊</span>
+      </div>
+      <div class="keys"><span class="kbd">F11</span><span class="kbd">F12</span> do nothing</div>
+    </div>
+
+    <div class="panel good">
+      <h3>With fixaudio</h3>
+      <p class="cap">Output: your monitor</p>
+      <div class="slider">
+        <span class="ico">🔈</span>
+        <div class="track"><div class="fill" id="f" style="width:62%"></div><div class="knob" id="k" style="left:62%"></div></div>
+        <span class="ico">🔊</span>
+      </div>
+      <div class="keys"><span class="kbd">F11</span><span class="kbd">F12</span> just work</div>
+    </div>
+  </div>
+</header>
+
+<section>
+  <h2>Why macOS does this</h2>
+  <p>
+    When audio travels over the display cable, macOS treats volume as the
+    monitor&rsquo;s business rather than its own, and disables its own control
+    entirely.
+  </p>
+  <p>
+    The monitor is still listening, though. Most of them accept
+    <strong>DDC/CI</strong> commands over that same cable. fixaudio writes VCP
+    code <code>0x62</code> — audio speaker volume — straight to the display, and
+    intercepts your media keys to drive it.
+  </p>
+</section>
+
+<section>
+  <h2>What you get</h2>
+  <ul>
+    <li><strong>The volume keys work.</strong> F11, F12 and mute, with an on-screen level readout.</li>
+    <li><strong>They still work everywhere else.</strong> When output isn&rsquo;t a monitor, keys pass straight through and macOS behaves exactly as it always has.</li>
+    <li><strong>Fast output switching.</strong> <span class="kbd">⌘⌥⌃A</span> cycles devices, and a 🔈 menubar item picks one directly.</li>
+    <li><strong>A CLI</strong>, if you&rsquo;d rather script it than press keys.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>It works on monitors that lie</h2>
+  <p>
+    Plenty of monitors accept DDC writes but return garbage on reads. The Samsung
+    CF791 this was built for reports the same value for <em>every</em> setting,
+    and claims its maximum volume is <code>-128</code>.
+  </p>
+  <div class="callout">
+    <p>
+      Tools that read the current volume before changing it get stuck on hardware
+      like this. <strong>fixaudio never reads.</strong> It caches the level
+      locally, per display, and only ever writes.
+    </p>
+  </div>
+  <p>
+    It then re-asserts that level after sleep, input changes, and device
+    switches — because a monitor won&rsquo;t remember it for you, and its own
+    buttons will move it behind your back.
+  </p>
+</section>
+
+<section>
+  <h2>The CLI</h2>
+  <p class="tight">Mostly you just press the volume keys. Beyond that:</p>
+  <table>
+    <tbody>
+      <tr><td><code>ddcvol up</code> / <code>down</code></td><td>Raise or lower the volume</td></tr>
+      <tr><td><code>ddcvol set &lt;0-100&gt;</code></td><td>Set an absolute level</td></tr>
+      <tr><td><code>ddcvol mute</code></td><td>Toggle mute</td></tr>
+      <tr><td><code>ddcvol sync</code></td><td>Re-push the cached level to the monitor</td></tr>
+      <tr><td><code>ddcvol status</code></td><td>Show the current route and level</td></tr>
+      <tr><td><code>ddcvol doctor</code></td><td>Diagnose DDC support on your machine</td></tr>
+      <tr><td><code>audioout cycle</code></td><td>Switch to the next output device</td></tr>
+      <tr><td><code>audioout set &lt;name&gt;</code></td><td>Switch to one by name</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Before you install</h2>
+  <p>
+    fixaudio installs <a href="https://github.com/waydabber/m1ddc">m1ddc</a>,
+    <a href="https://github.com/deweller/switchaudio-osx">switchaudio-osx</a> and
+    <a href="https://www.hammerspoon.org">Hammerspoon</a> via Homebrew.
+    Hammerspoon needs Accessibility permission to see your volume keys.
+  </p>
+  <p>
+    DDC doesn&rsquo;t work over every port on Apple Silicon. If
+    <code>ddcvol doctor</code> finds no displays, try a different cable or
+    port — USB-C and DisplayPort are the most reliable, though the built-in HDMI
+    port works on many machines, including the M4 Mac mini this was built on.
+  </p>
+  <p>
+    <a href="https://github.com/MonitorControl/MonitorControl">MonitorControl</a>
+    is the well-known app in this space and does far more, including brightness.
+    Try it first — if it works for you, use it. fixaudio exists for the narrower
+    case where it doesn&rsquo;t: monitors with unreliable DDC reads, and people
+    who want a scriptable CLI rather than an app.
+  </p>
+</section>
+
+<footer>
+  <a href="https://github.com/shravankb301/fixaudio">GitHub</a>
+  <a href="https://github.com/shravankb301/fixaudio#troubleshooting">Troubleshooting</a>
+  <a href="https://github.com/shravankb301/fixaudio/issues">Report an issue</a>
+  <span>MIT</span>
+</footer>
+
+</div>
+
+<script>
+  // Copy the install command.
+  const btn = document.getElementById('copy');
+  btn.addEventListener('click', async () => {
+    const text = document.getElementById('cmd').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    btn.textContent = 'Copied';
+    btn.classList.add('done');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600);
+  });
+
+  // Nudge the "working" slider, so the difference between the two panels reads
+  // at a glance.
+  const fill = document.getElementById('f');
+  const knob = document.getElementById('k');
+  const steps = [62, 68, 74, 68, 56, 44, 50, 62];
+  let i = 0;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduced) {
+    setInterval(() => {
+      i = (i + 1) % steps.length;
+      fill.style.transition = knob.style.transition = 'all .45s cubic-bezier(.4,0,.2,1)';
+      fill.style.width = steps[i] + '%';
+      knob.style.left = steps[i] + '%';
+    }, 1400);
+  }
+</script>
+
+</body>
+</html>
