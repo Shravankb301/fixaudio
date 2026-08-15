@@ -110,6 +110,48 @@ def reads_badge(r):
     return '<span class="muted">&mdash;</span>'
 
 
+# Grades come strictly from measured behaviour, and stay ungraded when we
+# didn't measure enough to be fair. Kept in sync with check.sh.
+GRADES = {
+    "A": "Obeys, and tells the truth.",
+    "B": "Does what it's told, lies about everything.",
+    "C": "Takes orders, except the one you wanted.",
+    "D": "Answers the door, refuses to move.",
+    "F": "Not listening.",
+    "?": "Not enough tested to grade.",
+}
+
+
+def grade_of(r):
+    if r.get("ddc_visible") is False:
+        return "F"
+    w, v, reads = r.get("writes", "untested"), r.get("volume", "untested"), r.get("reads")
+    if w == "no":
+        return "D"
+    if v == "no":
+        return "C"
+    if v == "works":
+        return "B" if reads == "broken" else "A"
+    return "?"
+
+
+def grade_badge(g):
+    tone = {"A": "badge-success", "B": "badge-secondary", "C": "badge-secondary",
+            "D": "badge-destructive", "F": "badge-destructive"}.get(g, "badge-outline")
+    return f'<span class="badge {tone} badge-grade" title="{escape(GRADES[g])}">{g}</span>'
+
+
+def best_grade(m):
+    """A monitor is judged by its best reported result — a bad port shouldn't
+    condemn the panel."""
+    order = ["A", "B", "C", "D", "F", "?"]
+    grades = [grade_of(r) for r in m["reports"]]
+    for g in order:
+        if g in grades:
+            return g
+    return "?"
+
+
 def monitor_name(m):
     return f"{m['brand']} {m['model']}"
 
@@ -135,10 +177,12 @@ def build_index(monitors):
         for r in m["reports"]:
             rows.append(
                 '<tr data-s="{s}">'
+                '<td>{grade}</td>'
                 '<td class="name"><a class="link" href="m/{slug}.html">{name}</a></td>'
                 '<td>{mac}</td><td>{conn}</td><td>{vol}</td><td>{reads}</td>'
                 "</tr>".format(
                     s=escape(f"{monitor_name(m)} {m.get('aka','')} {r['mac']} {r['connection']}".lower()),
+                    grade=grade_badge(grade_of(r)),
                     slug=m["slug"], name=escape(monitor_name(m)),
                     mac=escape(r["mac"]), conn=escape(r["connection"]),
                     vol=verdict(r["volume"]), reads=reads_badge(r["reads"]))
@@ -149,12 +193,12 @@ def build_index(monitors):
 
     header = f"""<header>
   {BRAND}
-  <h1 class="h1">Will it DDC?</h1>
+  <h1 class="h1">Is your monitor lying to you?</h1>
   <p class="lead">
-    Your Mac greys out the volume slider when sound goes to your monitor.
-    Whether you can get it back depends on your exact monitor, your exact Mac,
-    and which port you used &mdash; and nobody documents the combination.
-    So let's document it.
+    Your Mac greys out the volume slider when sound goes to your monitor. One
+    command interrogates the thing on your desk &mdash; does it tell the truth
+    about itself, and does it do what it's told &mdash; and grades it.
+    Takes about a minute.
   </p>
 
   <div class="card osd" role="img"
@@ -190,7 +234,7 @@ def build_index(monitors):
            placeholder="Filter by monitor, Mac, or connection…" autocomplete="off">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Monitor</th><th>Mac</th><th>Connection</th><th>Volume</th><th>DDC reads</th></tr></thead>
+        <thead><tr><th>Grade</th><th>Monitor</th><th>Mac</th><th>Connection</th><th>Volume</th><th>DDC reads</th></tr></thead>
         <tbody id="rows">
 {chr(10).join("          " + r for r in rows)}
         </tbody>
@@ -289,9 +333,50 @@ def build_index(monitors):
       <a class="link" href="{REPO}/blob/main/data/monitors.json">a JSON file you can read</a>.
     </p>""")
 
+    scale_rows = "".join(
+        f'    <div class="scale-row">{grade_badge(g)}<span>{escape(t)}</span></div>\n'
+        for g, t in GRADES.items() if g != "?")
+
+    brands = {}
+    for m in monitors:
+        brands.setdefault(m["brand"], []).append(best_grade(m))
+
+    brand_rows = "".join(
+        '    <div class="brandbar"><span class="bname">{b}</span>'
+        '<span class="grades">{gs}</span></div>\n'.format(
+            b=escape(b), gs="".join(grade_badge(g) for g in sorted(gs)))
+        for b, gs in sorted(brands.items()))
+
+    enough = len(brands) >= 3
+    brand_note = (
+        "" if enough else
+        '    <p class="muted small">One brand is not a pattern. This becomes worth '
+        'reading at around a dozen manufacturers &mdash; which is entirely a matter of '
+        'how many people run the check.</p>\n')
+
+    grading = card(
+        "How monitors are graded",
+        "Two things decide it: whether the monitor tells the truth about its own "
+        "state, and whether it does what it is told.",
+        f"""    <div class="scale">
+{scale_rows}    </div>
+    <p class="muted small">
+      Grades come only from behaviour that was actually measured. A monitor whose
+      write test nobody ran stays ungraded rather than guessed at.
+    </p>""")
+
+    bybrand = card(
+        "Which brands tell the truth?",
+        "Best grade recorded for each manufacturer's monitors.",
+        f"""{"".join(brand_rows)}{brand_note}    <div class="row">
+      <a class="btn btn-primary" href="{SUBMIT}">Add your monitor</a>
+    </div>""")
+
     body = f"""{header}
 <main>
 {results}
+{grading}
+{bybrand}
 {why}
 {three}
 {lying}
@@ -340,6 +425,7 @@ def build_monitor(m):
         f'{escape(r["notes"])}</p>'
         for r in m["reports"] if r.get("notes"))
 
+    g = best_grade(m)
     works = any(r["volume"] == "works" for r in m["reports"])
     broken = any(r["reads"] == "broken" for r in m["reports"])
 
@@ -359,7 +445,10 @@ def build_monitor(m):
     header = f"""<header>
   <a href="../" class="badge badge-outline brand">{LOGO}<span>Will It DDC?</span></a>
   <h1 class="h1">Does the {escape(name)} support volume control on a Mac?</h1>
-  <p class="lead">{answer}</p>
+  <div class="grade-hero">
+    {grade_badge(g)}
+    <p class="lead">{answer}</p>
+  </div>
   {aka}
 </header>"""
 

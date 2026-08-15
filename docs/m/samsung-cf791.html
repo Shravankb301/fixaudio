@@ -445,6 +445,38 @@ footer {
   font-weight: 500;
 }
 .brand:hover { background: hsl(var(--accent)); }
+
+/* --- grades ---------------------------------------------------------------
+ * The grade is the shareable unit, so it gets weight wherever it appears. */
+
+.badge-grade {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  min-width: 1.5rem;
+  justify-content: center;
+  padding: 0.1rem 0.5rem;
+}
+
+.grade-hero { display: flex; align-items: flex-start; gap: 0.9rem; }
+.grade-hero .badge-grade {
+  font-size: 1.35rem;
+  min-width: 2.6rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.scale { display: flex; flex-direction: column; gap: 0.55rem; }
+.scale-row { display: flex; align-items: baseline; gap: 0.75rem; font-size: 0.9rem; }
+.scale-row .badge-grade { flex-shrink: 0; }
+.scale-row span:last-child { color: hsl(var(--muted-foreground)); }
+
+.brandbar {
+  display: flex; align-items: center; gap: 0.75rem;
+  font-size: 0.9rem; padding: 0.5rem 0;
+}
+.brandbar .bname { width: 7rem; flex-shrink: 0; font-weight: 500; }
+.brandbar .grades { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -452,7 +484,10 @@ footer {
 <header>
   <a href="../" class="badge badge-outline brand"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="1.8" y="3.4" width="16.4" height="11.2" rx="2.4" stroke="currentColor" stroke-width="1.5"/><path d="M7.4 17.6h5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Will It DDC?</span></a>
   <h1 class="h1">Does the Samsung CF791 support volume control on a Mac?</h1>
-  <p class="lead"><strong>Yes, with the right tool.</strong> The Samsung CF791 accepts DDC volume commands but lies when asked about its current state. Apps that read before writing will look broken; a write-only tool works fine.</p>
+  <div class="grade-hero">
+    <span class="badge badge-secondary badge-grade" title="Does what it&#x27;s told, lies about everything.">B</span>
+    <p class="lead"><strong>Yes, with the right tool.</strong> The Samsung CF791 accepts DDC volume commands but lies when asked about its current state. Apps that read before writing will look broken; a write-only tool works fine.</p>
+  </div>
   <p class="small muted">Also sold as C34F791.</p>
 </header>
 <main>

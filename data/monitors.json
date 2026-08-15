@@ -16,7 +16,8 @@
           "reads": "broken",
           "notes": "Every VCP code reads back 110 and max volume reports -128, but writes land reliably and audibly. Needs a write-only tool.",
           "by": "maintainer",
-          "date": "2026-08-14"
+          "date": "2026-08-14",
+          "writes": "works"
         }
       ]
     }
