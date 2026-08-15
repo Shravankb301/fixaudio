@@ -3,11 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>fixaudio — volume keys for monitors macOS won't control</title>
-<meta name="description" content="macOS greys out the volume slider when audio goes to a monitor over HDMI or DisplayPort. fixaudio gives your volume keys back, using DDC/CI.">
-<meta property="og:title" content="fixaudio">
-<meta property="og:description" content="Volume keys that work when your Mac says they can't.">
+<title>Fix Greyed-Out Volume Control for External Monitors on macOS — fixaudio</title>
+<meta name="description" content="Volume slider greyed out and volume keys not working with your HDMI or DisplayPort monitor on macOS? fixaudio restores keyboard volume control using DDC/CI — including on the Mac mini's built-in HDMI port.">
+<link rel="canonical" href="https://shravankb301.github.io/fixaudio/">
+<meta property="og:title" content="Fix greyed-out volume control for external monitors on macOS">
+<meta property="og:description" content="Your volume keys stop working when audio goes to your monitor. fixaudio gives them back, using DDC/CI.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://shravankb301.github.io/fixaudio/">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "fixaudio",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "macOS 13+ (Apple Silicon)",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "description": "Restores keyboard volume control for external monitors on macOS using DDC/CI, including on Mac mini built-in HDMI ports."
+}
+</script>
 <style>
   :root {
     --bg: #0c0d10;
@@ -50,9 +64,7 @@
     padding: 0.1em 0.4em;
   }
 
-  /* --- hero --- */
-
-  header { padding: 88px 0 56px; }
+  header { padding: 80px 0 48px; }
 
   .eyebrow {
     font-family: var(--mono);
@@ -63,8 +75,8 @@
   }
 
   h1 {
-    font-size: clamp(38px, 7vw, 60px);
-    line-height: 1.08;
+    font-size: clamp(33px, 5.6vw, 50px);
+    line-height: 1.1;
     letter-spacing: -0.025em;
     margin: 0 0 20px;
     font-weight: 640;
@@ -77,10 +89,8 @@
     max-width: 62ch;
   }
 
-  /* --- install --- */
-
   .install {
-    margin: 36px 0 14px;
+    margin: 34px 0 14px;
     display: flex;
     align-items: stretch;
     background: var(--bg-sunken);
@@ -122,13 +132,11 @@
 
   .subnote { font-size: 14px; color: var(--text-faint); margin: 0; }
 
-  /* --- the demo panel --- */
-
   .demo {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
-    margin: 56px 0 8px;
+    margin: 52px 0 8px;
   }
   @media (max-width: 620px) { .demo { grid-template-columns: 1fr; } }
 
@@ -154,23 +162,15 @@
   .panel.good .slider .ico { opacity: .95; }
 
   .track {
-    flex: 1;
-    height: 7px;
-    border-radius: 4px;
-    background: #2a2e37;
-    position: relative;
+    flex: 1; height: 7px; border-radius: 4px;
+    background: #2a2e37; position: relative;
   }
-  .fill {
-    position: absolute; inset: 0 auto 0 0;
-    border-radius: 4px;
-    background: var(--accent);
-  }
+  .fill { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--accent); }
   .knob {
     position: absolute; top: 50%;
     width: 15px; height: 15px; border-radius: 50%;
     transform: translate(-50%, -50%);
-    background: #fff;
-    box-shadow: 0 1px 3px rgba(0,0,0,.5);
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.5);
   }
   .panel.bad .track { background: #202329; }
   .panel.bad .fill { background: #333842; }
@@ -185,10 +185,7 @@
   }
   .panel.good .kbd { color: var(--text); border-color: var(--accent-dim); }
 
-  /* --- sections --- */
-
-  section { padding: 52px 0; border-top: 1px solid var(--line-soft); }
-  section:first-of-type { border-top: none; }
+  section { padding: 48px 0; border-top: 1px solid var(--line-soft); }
 
   h2 {
     font-size: 24px;
@@ -197,22 +194,23 @@
     font-weight: 620;
   }
 
+  h3.q {
+    font-size: 16.5px;
+    font-weight: 600;
+    margin: 26px 0 6px;
+    color: var(--text);
+    letter-spacing: -0.005em;
+  }
+
   p { margin: 0 0 16px; color: var(--text-dim); }
   p.tight { margin-bottom: 8px; }
   strong { color: var(--text); font-weight: 600; }
 
   ul { margin: 0 0 16px; padding-left: 0; list-style: none; }
-  li {
-    color: var(--text-dim);
-    margin-bottom: 12px;
-    padding-left: 26px;
-    position: relative;
-  }
+  li { color: var(--text-dim); margin-bottom: 12px; padding-left: 26px; position: relative; }
   li::before {
-    content: "";
-    position: absolute; left: 6px; top: 11px;
-    width: 5px; height: 5px; border-radius: 50%;
-    background: var(--accent-dim);
+    content: ""; position: absolute; left: 6px; top: 11px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent-dim);
   }
 
   .callout {
@@ -223,22 +221,28 @@
     padding: 18px 20px;
     margin: 0 0 16px;
   }
+  .callout.warn { border-left-color: var(--warn); }
   .callout p:last-child { margin-bottom: 0; }
 
-  table { width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 14.5px; display: block; overflow-x: auto; }
-  tbody { display: table; width: 100%; }
+  .tablewrap { overflow-x: auto; margin: 0 0 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th {
+    text-align: left; padding: 0 14px 9px 0;
+    font-size: 12px; font-weight: 600; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: .05em;
+    border-bottom: 1px solid var(--line);
+  }
   td { padding: 9px 14px 9px 0; border-bottom: 1px solid var(--line-soft); vertical-align: top; color: var(--text-dim); }
-  td:first-child { white-space: nowrap; width: 1%; }
+  td:first-child { white-space: nowrap; }
   td code { background: none; border: none; padding: 0; color: var(--text); }
+  .yes { color: var(--accent); }
 
   footer {
-    padding: 44px 0 72px;
+    padding: 40px 0 72px;
     border-top: 1px solid var(--line-soft);
     color: var(--text-faint);
     font-size: 14px;
-    display: flex;
-    gap: 22px;
-    flex-wrap: wrap;
+    display: flex; gap: 22px; flex-wrap: wrap;
   }
 </style>
 </head>
@@ -247,19 +251,19 @@
 <div class="wrap">
 
 <header>
-  <div class="eyebrow">macOS · Apple Silicon</div>
-  <h1>Volume keys that work when your Mac says they can&rsquo;t.</h1>
+  <div class="eyebrow">macOS · Apple Silicon · free &amp; open source</div>
+  <h1>Volume keys that work with your external monitor on macOS</h1>
   <p class="lede">
     Send audio to your monitor over HDMI or DisplayPort and macOS greys out the
-    volume slider. The keys stop working. Your only control is the joystick on
-    the back of the monitor.
+    volume slider. The volume keys stop working. Your only control is the
+    joystick on the back of the monitor. fixaudio gives the keys back.
   </p>
 
   <div class="install">
     <pre><span class="prompt">$ </span><span id="cmd">curl -fsSL https://raw.githubusercontent.com/shravankb301/fixaudio/main/install.sh | bash</span></pre>
     <button class="copy" id="copy">Copy</button>
   </div>
-  <p class="subnote">Apple Silicon, macOS 13+. MIT licensed.</p>
+  <p class="subnote">Apple Silicon, macOS 13+. MIT licensed. Takes about a minute.</p>
 
   <div class="demo">
     <div class="panel bad">
@@ -287,11 +291,13 @@
 </header>
 
 <section>
-  <h2>Why macOS does this</h2>
+  <h2>Why is the volume slider greyed out on my Mac?</h2>
   <p>
-    When audio travels over the display cable, macOS treats volume as the
+    Because the audio is travelling over your display cable. When sound goes out
+    over HDMI or DisplayPort to a monitor, macOS treats the volume as the
     monitor&rsquo;s business rather than its own, and disables its own control
-    entirely.
+    entirely — the Control Center slider greys out and the keyboard volume keys
+    do nothing at all.
   </p>
   <p>
     The monitor is still listening, though. Most of them accept
@@ -302,17 +308,49 @@
 </section>
 
 <section>
+  <h2>Mac mini and Mac Studio HDMI: the case nothing else covers</h2>
+  <p>
+    If you searched for this because <strong>MonitorControl doesn&rsquo;t work on
+    your Mac mini</strong>, here&rsquo;s why. Macs with a built-in HDMI port
+    don&rsquo;t emit HDMI natively — they emit DisplayPort and convert it with an
+    MCDP2900 chip. That chip can do the I2C communication DDC needs, but Apple
+    cuts it off at firmware level once the display&rsquo;s EDID has been read.
+  </p>
+  <p>
+    So MonitorControl
+    <a href="https://github.com/MonitorControl/MonitorControl/discussions/750">detects and disables itself</a>
+    on the built-in HDMI port of the 2018 Intel Mac mini, all M1 Macs, and the
+    entry-level M2 Mac mini. Its official advice is to use USB-C instead.
+  </p>
+  <div class="callout">
+    <p>
+      <strong>On the M4 Mac mini, DDC writes over the built-in HDMI port work.</strong>
+      That&rsquo;s what fixaudio was built on and verified against — an M4 Mac
+      mini driving a Samsung CF791 over plain HDMI, with working volume keys.
+    </p>
+  </div>
+  <div class="callout warn">
+    <p>
+      Verified on exactly one machine so far — mine. If you have an Apple Silicon
+      Mac mini or Studio, running <code>ddcvol doctor</code> and
+      <a href="https://github.com/shravankb301/fixaudio/issues">reporting the result</a>
+      genuinely helps establish where this works and where it doesn&rsquo;t.
+    </p>
+  </div>
+</section>
+
+<section>
   <h2>What you get</h2>
   <ul>
     <li><strong>The volume keys work.</strong> F11, F12 and mute, with an on-screen level readout.</li>
     <li><strong>They still work everywhere else.</strong> When output isn&rsquo;t a monitor, keys pass straight through and macOS behaves exactly as it always has.</li>
     <li><strong>Fast output switching.</strong> <span class="kbd">⌘⌥⌃A</span> cycles devices, and a 🔈 menubar item picks one directly.</li>
-    <li><strong>A CLI</strong>, if you&rsquo;d rather script it than press keys.</li>
+    <li><strong>A scriptable CLI.</strong> <code>ddcvol set 40</code> in a shell script or Shortcut — something the GUI apps don&rsquo;t give you.</li>
   </ul>
 </section>
 
 <section>
-  <h2>It works on monitors that lie</h2>
+  <h2>It works on monitors that lie about their own state</h2>
   <p>
     Plenty of monitors accept DDC writes but return garbage on reads. The Samsung
     CF791 this was built for reports the same value for <em>every</em> setting,
@@ -333,20 +371,106 @@
 </section>
 
 <section>
+  <h2>Tested monitors</h2>
+  <p class="tight">
+    Honest and short, because it only lists what&rsquo;s actually been verified.
+    <a href="https://github.com/shravankb301/fixaudio/issues">Add yours</a> —
+    run <code>ddcvol doctor</code> and paste the output.
+  </p>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Monitor</th><th>Mac</th><th>Connection</th><th>Volume</th><th>DDC reads</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Samsung CF791</td>
+          <td>M4 Mac mini</td>
+          <td>Built-in HDMI</td>
+          <td class="yes">Works</td>
+          <td>Broken (harmless)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
   <h2>The CLI</h2>
   <p class="tight">Mostly you just press the volume keys. Beyond that:</p>
-  <table>
-    <tbody>
-      <tr><td><code>ddcvol up</code> / <code>down</code></td><td>Raise or lower the volume</td></tr>
-      <tr><td><code>ddcvol set &lt;0-100&gt;</code></td><td>Set an absolute level</td></tr>
-      <tr><td><code>ddcvol mute</code></td><td>Toggle mute</td></tr>
-      <tr><td><code>ddcvol sync</code></td><td>Re-push the cached level to the monitor</td></tr>
-      <tr><td><code>ddcvol status</code></td><td>Show the current route and level</td></tr>
-      <tr><td><code>ddcvol doctor</code></td><td>Diagnose DDC support on your machine</td></tr>
-      <tr><td><code>audioout cycle</code></td><td>Switch to the next output device</td></tr>
-      <tr><td><code>audioout set &lt;name&gt;</code></td><td>Switch to one by name</td></tr>
-    </tbody>
-  </table>
+  <div class="tablewrap">
+    <table>
+      <tbody>
+        <tr><td><code>ddcvol up</code> / <code>down</code></td><td>Raise or lower the volume</td></tr>
+        <tr><td><code>ddcvol set &lt;0-100&gt;</code></td><td>Set an absolute level</td></tr>
+        <tr><td><code>ddcvol mute</code></td><td>Toggle mute</td></tr>
+        <tr><td><code>ddcvol sync</code></td><td>Re-push the cached level to the monitor</td></tr>
+        <tr><td><code>ddcvol status</code></td><td>Show the current route and level</td></tr>
+        <tr><td><code>ddcvol doctor</code></td><td>Diagnose DDC support on your machine</td></tr>
+        <tr><td><code>audioout cycle</code></td><td>Switch to the next output device</td></tr>
+        <tr><td><code>audioout set &lt;name&gt;</code></td><td>Switch to one by name</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Questions</h2>
+
+  <h3 class="q">Why don&rsquo;t my volume keys work with my HDMI monitor?</h3>
+  <p>
+    macOS disables its own volume control whenever audio is routed over a display
+    cable, because it assumes the display owns the volume. Nothing is broken —
+    it&rsquo;s deliberate. fixaudio works around it by talking to the monitor
+    directly over DDC/CI.
+  </p>
+
+  <h3 class="q">Will this work on my monitor?</h3>
+  <p>
+    Run <code>ddcvol doctor</code> after installing — it tells you whether your
+    display answers DDC at all, which port it&rsquo;s on, and whether its read
+    channel is reliable. DDC volume support is firmware-dependent and genuinely
+    hit-or-miss between models, so the diagnostic is the honest answer.
+  </p>
+
+  <h3 class="q">How is this different from MonitorControl?</h3>
+  <p>
+    <a href="https://github.com/MonitorControl/MonitorControl">MonitorControl</a>
+    is the well-known app here and does far more, including brightness. Try it
+    first. fixaudio covers the narrower cases it doesn&rsquo;t: monitors whose
+    DDC reads return garbage, Mac mini built-in HDMI ports, and people who want a
+    scriptable CLI instead of an app.
+  </p>
+
+  <h3 class="q">What about BetterDisplay?</h3>
+  <p>
+    <a href="https://github.com/waydabber/BetterDisplay">BetterDisplay</a> also
+    handles HDMI DDC on these Macs and is free — if you want a full-featured
+    display app, use it. fixaudio is two shell scripts and a Hammerspoon module,
+    for people who want the volume keys fixed and nothing else running.
+  </p>
+
+  <h3 class="q">Does it slow down my volume keys?</h3>
+  <p>
+    No. The decision about where to send a keypress is cached per output device
+    rather than computed per press, and rapid repeats are coalesced into a single
+    DDC write, so holding the key doesn&rsquo;t queue up round-trips.
+  </p>
+
+  <h3 class="q">Does it break my built-in speakers?</h3>
+  <p>
+    No. When the output device isn&rsquo;t a DDC display, keypresses pass through
+    untouched and macOS handles them exactly as before.
+  </p>
+
+  <h3 class="q">Is it safe to pipe the installer to bash?</h3>
+  <p>
+    Read it first — it&rsquo;s
+    <a href="https://github.com/shravankb301/fixaudio/blob/main/install.sh">short and on GitHub</a>.
+    It installs three Homebrew packages, copies two scripts to
+    <code>~/.local/bin</code>, and appends one line to your Hammerspoon config
+    (backing it up first). <code>uninstall.sh</code> reverses it.
+  </p>
 </section>
 
 <section>
@@ -360,29 +484,20 @@
   <p>
     DDC doesn&rsquo;t work over every port on Apple Silicon. If
     <code>ddcvol doctor</code> finds no displays, try a different cable or
-    port — USB-C and DisplayPort are the most reliable, though the built-in HDMI
-    port works on many machines, including the M4 Mac mini this was built on.
-  </p>
-  <p>
-    <a href="https://github.com/MonitorControl/MonitorControl">MonitorControl</a>
-    is the well-known app in this space and does far more, including brightness.
-    Try it first — if it works for you, use it. fixaudio exists for the narrower
-    case where it doesn&rsquo;t: monitors with unreliable DDC reads, and people
-    who want a scriptable CLI rather than an app.
+    port — USB-C and DisplayPort are the most reliable.
   </p>
 </section>
 
 <footer>
   <a href="https://github.com/shravankb301/fixaudio">GitHub</a>
   <a href="https://github.com/shravankb301/fixaudio#troubleshooting">Troubleshooting</a>
-  <a href="https://github.com/shravankb301/fixaudio/issues">Report an issue</a>
+  <a href="https://github.com/shravankb301/fixaudio/issues">Report your monitor</a>
   <span>MIT</span>
 </footer>
 
 </div>
 
 <script>
-  // Copy the install command.
   const btn = document.getElementById('copy');
   btn.addEventListener('click', async () => {
     const text = document.getElementById('cmd').textContent;
@@ -401,14 +516,12 @@
     setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600);
   });
 
-  // Nudge the "working" slider, so the difference between the two panels reads
-  // at a glance.
+  // Nudge the "working" slider so the difference between the panels reads at a glance.
   const fill = document.getElementById('f');
   const knob = document.getElementById('k');
   const steps = [62, 68, 74, 68, 56, 44, 50, 62];
   let i = 0;
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduced) {
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     setInterval(() => {
       i = (i + 1) % steps.length;
       fill.style.transition = knob.style.transition = 'all .45s cubic-bezier(.4,0,.2,1)';

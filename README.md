@@ -1,28 +1,60 @@
-# fixaudio
+# fixaudio — fix greyed-out volume control for external monitors on macOS
 
-**Volume keys that work when your Mac says they can't.**
+**Your Mac's volume keys stop working when audio goes to your monitor over HDMI
+or DisplayPort. This gives them back.**
 
-Plug a monitor into a Mac over HDMI or DisplayPort, send audio to its speakers,
-and macOS greys out the volume slider. The keyboard volume keys do nothing. Your
-only control is the joystick on the back of the monitor.
-
-fixaudio gives the keys back.
+Plug a monitor into a Mac, send audio to its speakers, and macOS greys out the
+volume slider in Control Center. The keyboard volume keys do nothing. Your only
+control is the joystick on the back of the monitor.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/shravankb301/fixaudio/main/install.sh | bash
 ```
 
-Apple Silicon Macs, macOS 13+.
+Apple Silicon Macs, macOS 13+. MIT licensed.
+**[Full docs and FAQ →](https://shravankb301.github.io/fixaudio/)**
 
 ---
 
-## Why macOS does this
+## Why is the volume slider greyed out on my Mac?
 
 When audio travels over the display cable, macOS treats the volume as the
 monitor's business rather than its own, so it disables its own control entirely.
 The monitor is still listening, though — most of them accept **DDC/CI** commands
 over that same cable. fixaudio writes VCP code `0x62` (audio speaker volume)
 directly, and intercepts the media keys to drive it.
+
+## Mac mini and Mac Studio HDMI: the case nothing else covers
+
+If you found this because **MonitorControl doesn't work on your Mac mini**,
+here's why. Macs with a built-in HDMI port don't emit HDMI natively — they emit
+DisplayPort and convert it with an MCDP2900 chip. That chip can do the I2C
+communication DDC needs, but Apple cuts it off at firmware level once the
+display's EDID has been read.
+
+So MonitorControl
+[detects and disables itself](https://github.com/MonitorControl/MonitorControl/discussions/750)
+on the built-in HDMI port of the 2018 Intel Mac mini, all M1 Macs, and the
+entry-level M2 Mac mini. Its official advice is to use USB-C instead.
+
+**On the M4 Mac mini, DDC writes over the built-in HDMI port work.** That's what
+fixaudio was built on and verified against: an M4 Mac mini driving a Samsung
+CF791 over plain HDMI, with working volume keys.
+
+> Verified on exactly one machine so far — mine. If you have an Apple Silicon
+> Mac mini or Studio, running `ddcvol doctor` and
+> [reporting the result](https://github.com/shravankb301/fixaudio/issues)
+> genuinely helps establish where this works and where it doesn't.
+
+## Tested monitors
+
+Short and honest, because it only lists what's actually been verified.
+**[Add yours](https://github.com/shravankb301/fixaudio/issues)** — run
+`ddcvol doctor` and paste the output.
+
+| Monitor | Mac | Connection | Volume | DDC reads |
+| --- | --- | --- | --- | --- |
+| Samsung CF791 | M4 Mac mini | Built-in HDMI | ✅ Works | Broken (harmless) |
 
 ## What you get
 
