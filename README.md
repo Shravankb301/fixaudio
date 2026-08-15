@@ -12,7 +12,7 @@ curl -fsSL https://raw.githubusercontent.com/shravankb301/fixaudio/main/install.
 ```
 
 Apple Silicon Macs, macOS 13+. MIT licensed.
-**[Full docs and FAQ →](https://shravankb301.github.io/fixaudio/)**
+**[Full docs and FAQ →](https://fixaudio.vercel.app/)**
 
 ---
 
