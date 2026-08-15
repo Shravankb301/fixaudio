@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 from html import escape
+from urllib.parse import quote
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, "data", "monitors.json")
@@ -22,66 +23,29 @@ SITE = "https://shravankb301.github.io/willitddc"
 REPO = "https://github.com/shravankb301/willitddc"
 CHECK_CMD = "curl -fsSL https://raw.githubusercontent.com/shravankb301/willitddc/main/check.sh | bash"
 
-CSS = """
-:root{--bg:#0c0d10;--raised:#14161b;--sunken:#08090b;--line:#24272f;--soft:#1b1e25;
---text:#e8eaed;--dim:#9aa1ad;--faint:#6b7280;--ok:#6ee7a8;--okdim:#2f6b4f;
---warn:#f0b866;--bad:#f0806c;
---mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
---sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
-line-height:1.6;-webkit-font-smoothing:antialiased}
-.wrap{max-width:820px;margin:0 auto;padding:0 24px}
-a{color:var(--ok);text-decoration:none}a:hover{text-decoration:underline}
-code{font-family:var(--mono);font-size:.9em;background:var(--raised);
-border:1px solid var(--soft);border-radius:4px;padding:.1em .4em}
-header{padding:72px 0 40px}
-.eyebrow{font-family:var(--mono);font-size:13px;color:var(--ok);margin-bottom:18px}
-h1{font-size:clamp(34px,6vw,54px);line-height:1.08;letter-spacing:-.025em;
-margin:0 0 18px;font-weight:640}
-.lede{font-size:clamp(17px,2.4vw,20px);color:var(--dim);margin:0 0 8px;max-width:62ch}
-.cmd{margin:32px 0 12px;display:flex;background:var(--sunken);border:1px solid var(--line);
-border-radius:10px;overflow:hidden}
-.cmd pre{margin:0;padding:15px 18px;font-family:var(--mono);font-size:13.5px;
-overflow-x:auto;flex:1;white-space:pre}
-.cmd .p{color:var(--faint);user-select:none}
-.copy{flex-shrink:0;border:none;border-left:1px solid var(--line);background:var(--raised);
-color:var(--dim);font-family:var(--sans);font-size:13px;font-weight:500;padding:0 18px;
-cursor:pointer}
-.copy:hover{background:#1b1e25;color:var(--text)}.copy.done{color:var(--ok)}
-.sub{font-size:14px;color:var(--faint);margin:0}
-section{padding:44px 0;border-top:1px solid var(--soft)}
-h2{font-size:24px;letter-spacing:-.015em;margin:0 0 14px;font-weight:620}
-h3.q{font-size:16.5px;font-weight:600;margin:24px 0 6px;color:var(--text)}
-p{margin:0 0 16px;color:var(--dim)}strong{color:var(--text);font-weight:600}
-ul{margin:0 0 16px;padding-left:0;list-style:none}
-li{color:var(--dim);margin-bottom:11px;padding-left:24px;position:relative}
-li::before{content:"";position:absolute;left:5px;top:11px;width:5px;height:5px;
-border-radius:50%;background:var(--okdim)}
-.callout{background:var(--raised);border:1px solid var(--line);border-left:2px solid var(--okdim);
-border-radius:0 10px 10px 0;padding:17px 19px;margin:0 0 16px}
-.callout.warn{border-left-color:var(--warn)}.callout p:last-child{margin-bottom:0}
-.tw{overflow-x:auto;margin:0 0 8px}
-table{width:100%;border-collapse:collapse;font-size:14.5px}
-th{text-align:left;padding:0 14px 9px 0;font-size:11.5px;font-weight:600;color:var(--faint);
-text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);
-white-space:nowrap}
-td{padding:10px 14px 10px 0;border-bottom:1px solid var(--soft);vertical-align:top;color:var(--dim)}
-td.m{white-space:nowrap}
-.yes{color:var(--ok);font-weight:600}.no{color:var(--bad);font-weight:600}
-.unk{color:var(--faint)}
-.pill{display:inline-block;font-size:11.5px;font-family:var(--mono);padding:2px 7px;
-border-radius:20px;border:1px solid var(--line);color:var(--dim)}
-.pill.broken{border-color:#5c4326;color:var(--warn)}
-#filter{width:100%;padding:11px 14px;margin:0 0 18px;background:var(--sunken);
-border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--sans);
-font-size:15px}
-#filter:focus{outline:none;border-color:var(--okdim)}
-.empty{color:var(--faint);font-size:14.5px;padding:14px 0}
-footer{padding:38px 0 70px;border-top:1px solid var(--soft);color:var(--faint);
-font-size:14px;display:flex;gap:20px;flex-wrap:wrap}
-.back{font-size:14px;color:var(--faint);margin-bottom:26px;display:block}
-"""
+CSS = open(os.path.join(ROOT, "assets", "style.css")).read()
+
+# A monitor with a light-sweep across the glass. Reads at 20px, which is all a
+# mark in a pill has to do.
+LOGO_SVG = """<svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true">\
+<rect x="1.6" y="3.2" width="16.8" height="11.6" rx="3.2" stroke="url(#lg)" stroke-width="1.4"/>\
+<path d="M3 12.6 17 5.6" stroke="rgba(255,255,255,.30)" stroke-width="1.2" stroke-linecap="round"/>\
+<path d="M7.2 17.6h5.6" stroke="url(#lg)" stroke-width="1.4" stroke-linecap="round"/>\
+<defs><linearGradient id="lg" x1="0" y1="0" x2="20" y2="20">\
+<stop stop-color="#6ee7a8"/><stop offset="1" stop-color="#5aa9e6"/></linearGradient></defs></svg>"""
+
+FAVICON = ("data:image/svg+xml," + quote(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+    '<rect width="20" height="20" rx="4.5" fill="#0b0d12"/>'
+    '<rect x="3.2" y="4.6" width="13.6" height="9.4" rx="2.4" fill="none" '
+    'stroke="#6ee7a8" stroke-width="1.5"/>'
+    '<path d="M4.4 12.2 15.6 6.4" stroke="rgba(255,255,255,.45)" stroke-width="1.2" '
+    'stroke-linecap="round"/>'
+    '<path d="M7.8 16.2h4.4" stroke="#6ee7a8" stroke-width="1.5" stroke-linecap="round"/>'
+    '</svg>'))
+
+BRAND = f'<div class="brand">{LOGO_SVG}<span>Will It DDC?</span></div>'
+
 
 COPY_JS = """
 document.querySelectorAll('.copy').forEach(function(b){
@@ -109,9 +73,13 @@ def page(title, desc, body, canonical, extra_js=""):
 <meta property="og:url" content="{canonical}">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
+<link rel="icon" href="{FAVICON}">
+<meta name="theme-color" content="#07080b">
+<meta name="color-scheme" content="dark">
 <style>{CSS}</style>
 </head>
 <body>
+<div class="bg"></div>
 <div class="wrap">
 {body}
 </div>
@@ -170,7 +138,7 @@ def build_index(monitors):
     count = sum(len(m["reports"]) for m in monitors)
     body = f"""
 <header>
-  <div class="eyebrow">macOS · Apple Silicon</div>
+  {BRAND}
   <h1>Will it DDC?</h1>
   <p class="lede">
     Your Mac greys out the volume slider when sound goes to your monitor. Whether
@@ -351,6 +319,7 @@ def build_monitor(m):
     body = f"""
 <header>
   <a class="back" href="../">← Will It DDC?</a>
+  {BRAND}
   <h1>Does the {escape(name)} support volume control on a Mac?</h1>
   <p class="lede">{verdict_text}</p>
   {aka}
