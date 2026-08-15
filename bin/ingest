@@ -1,0 +1,123 @@
+#!/bin/bash
+# ingest - turn a submitted report issue into merged data.
+#
+#   bin/ingest 12              # pull issue #12, add it, rebuild, push, close it
+#   bin/ingest 12 --dry-run    # parse and show the diff, change nothing
+#   bin/ingest --file r.txt    # parse a local file (for testing the parser)
+#
+# Does the same job as automation/report-to-pr.yml, but runs on your machine
+# with the GitHub token you already have. The workflow needs the `workflow`
+# OAuth scope to install; this needs nothing extra.
+
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+bold=$(tput bold 2>/dev/null || true)
+dim=$(tput dim 2>/dev/null || true)
+green=$(tput setaf 2 2>/dev/null || true)
+red=$(tput setaf 1 2>/dev/null || true)
+yellow=$(tput setaf 3 2>/dev/null || true)
+reset=$(tput sgr0 2>/dev/null || true)
+
+die() { echo "${red}error:${reset} $*" >&2; exit 1; }
+
+ISSUE=""; FILE=""; DRY=0; YES=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --file) FILE="${2:?--file needs a path}"; shift 2 ;;
+    --dry-run) DRY=1; shift ;;
+    --yes|-y) YES=1; shift ;;
+    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) ISSUE="$1"; shift ;;
+  esac
+done
+
+[[ -n "$ISSUE" || -n "$FILE" ]] || die "give an issue number, or --file <path>"
+
+# --- fetch --------------------------------------------------------------------
+
+if [[ -n "$FILE" ]]; then
+  [[ -r "$FILE" ]] || die "can't read $FILE"
+  BODY="$(cat "$FILE")"
+  AUTHOR="local"
+  NUM="0"
+else
+  command -v gh >/dev/null || die "needs the gh CLI"
+  echo "${bold}==>${reset} fetching issue #$ISSUE"
+  BODY="$(gh issue view "$ISSUE" --json body -q .body)" || die "couldn't read issue #$ISSUE"
+  AUTHOR="$(gh issue view "$ISSUE" --json author -q .author.login)"
+  NUM="$ISSUE"
+fi
+
+[[ -n "${BODY// }" ]] || die "issue #$ISSUE has an empty body"
+
+# --- parse --------------------------------------------------------------------
+
+echo "${bold}==>${reset} parsing"
+if ! SUMMARY="$(printf '%s' "$BODY" | ISSUE_AUTHOR="$AUTHOR" ISSUE_NUMBER="$NUM" \
+      python3 .github/scripts/parse_report.py 2>/tmp/ingest_err)"; then
+  REASON="$(cat /tmp/ingest_err)"
+  echo "${yellow}Couldn't parse it:${reset} $REASON"
+  if [[ -n "$ISSUE" && "$DRY" == "0" ]]; then
+    read -r -p "Comment on the issue telling them what's missing? [y/N] " a
+    if [[ "$a" =~ ^[yY] ]]; then
+      gh issue comment "$ISSUE" --body "Thanks for sending this in — I couldn't read it automatically.
+
+$REASON
+
+Edit the issue with the missing piece and I'll pick it up again."
+      echo "${green}commented${reset}"
+    fi
+  fi
+  exit 1
+fi
+
+echo "  $SUMMARY"
+
+# --- rebuild ------------------------------------------------------------------
+
+echo "${bold}==>${reset} rebuilding site"
+python3 build.py
+
+echo
+git --no-pager diff --stat data/monitors.json docs || true
+echo
+
+if [[ "$DRY" == "1" ]]; then
+  echo "${dim}dry run — restoring${reset}"
+  # `git checkout` only restores tracked files, so a newly generated monitor
+  # page would survive. Rebuilding from the restored data wipes docs/ first.
+  git checkout -- data/monitors.json 2>/dev/null || true
+  python3 build.py >/dev/null
+  exit 0
+fi
+
+if git diff --quiet data/monitors.json; then
+  echo "${yellow}Already in the data — nothing to change.${reset}"
+  exit 0
+fi
+
+# --- commit -------------------------------------------------------------------
+
+if [[ "$YES" == "0" ]]; then
+  read -r -p "Commit and push this? [y/N] " a
+  [[ "$a" =~ ^[yY] ]] || { echo "left uncommitted"; exit 0; }
+fi
+
+MSG="Add report: $SUMMARY"
+[[ "$NUM" != "0" ]] && MSG="$MSG
+
+Closes #$NUM"
+
+git add data/monitors.json docs
+git commit -q -m "$MSG"
+git push -q origin HEAD
+echo "${green}pushed${reset}"
+
+if [[ "$NUM" != "0" ]]; then
+  gh issue comment "$NUM" --body "Merged — thanks. It'll be on the site once Pages rebuilds:
+https://shravankb301.github.io/willitddc/" >/dev/null
+  gh issue close "$NUM" >/dev/null 2>&1 || true
+  echo "${green}issue #$NUM closed${reset}"
+fi

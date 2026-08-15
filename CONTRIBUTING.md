@@ -72,3 +72,19 @@ and a malformed issue (which must fail with a message a human can act on).
 
 Be decent to people reporting hardware that disappointed them. Criticise
 monitors, not each other.
+
+## Merging a report (maintainer)
+
+```sh
+bin/ingest 12             # parse issue #12, rebuild, commit, push, close it
+bin/ingest 12 --dry-run   # see the diff first, change nothing
+```
+
+`automation/report-to-pr.yml` does the same thing automatically when an issue is
+opened, but installing a workflow needs the `workflow` OAuth scope. Until then
+`bin/ingest` is the working path and needs nothing extra:
+
+```sh
+gh auth refresh -s workflow
+mkdir -p .github/workflows && cp automation/report-to-pr.yml .github/workflows/
+```

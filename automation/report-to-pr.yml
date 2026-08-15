@@ -1,0 +1,103 @@
+name: Report to PR
+
+# Turns a submitted monitor report into a pull request against data/monitors.json.
+# It never commits to main: reports are untrusted input, so a human reviews the
+# diff. Uses the gh CLI rather than a third-party action to keep the supply
+# chain to things GitHub already ships.
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  parse:
+    if: contains(github.event.issue.labels.*.name, 'report')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Parse the report into the data file
+        id: parse
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set +e
+          summary=$(printf '%s' "$ISSUE_BODY" | python3 .github/scripts/parse_report.py 2>parse_err.txt)
+          code=$?
+          set -e
+          if [ $code -ne 0 ]; then
+            {
+              echo "ok=false"
+              echo "reason<<EOF"
+              cat parse_err.txt
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "ok=true"
+              echo "summary=$summary"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tell the reporter what's missing
+        if: steps.parse.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" --body "Thanks for sending this in — I couldn't read it automatically yet.
+
+          ${{ steps.parse.outputs.reason }}
+
+          Edit the issue and it'll be picked up again automatically."
+
+      - name: Rebuild the site
+        if: steps.parse.outputs.ok == 'true'
+        run: python3 build.py
+
+      - name: Open a pull request
+        if: steps.parse.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="report/issue-${{ github.event.issue.number }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+
+          if git diff --quiet; then
+            gh issue comment "${{ github.event.issue.number }}" \
+              --body "This report is already in the data — nothing to change. Thanks for checking."
+            exit 0
+          fi
+
+          git add data/monitors.json docs
+          git commit -m "Add report: ${{ steps.parse.outputs.summary }}
+
+          Closes #${{ github.event.issue.number }}"
+          git push --force-with-lease origin "$branch"
+
+          if ! gh pr view "$branch" >/dev/null 2>&1; then
+            gh pr create \
+              --title "Add report: ${{ steps.parse.outputs.summary }}" \
+              --body "Parsed from #${{ github.event.issue.number }} by @${{ github.event.issue.user.login }}.
+
+          \`\`\`
+          ${{ steps.parse.outputs.summary }}
+          \`\`\`
+
+          Data and rebuilt site included. Check the numbers against the pasted report before merging." \
+              --head "$branch"
+          fi
+
+          gh issue comment "${{ github.event.issue.number }}" \
+            --body "Thanks — opened a pull request with your report. It'll appear on the site once merged."
