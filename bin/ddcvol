@@ -1,0 +1,295 @@
+#!/bin/bash
+# ddcvol - volume control for external monitors over DDC/CI.
+#
+# macOS refuses to control volume for audio going out over HDMI/DisplayPort to a
+# monitor: the Control Center slider greys out and the volume keys do nothing.
+# The monitor will usually still accept DDC/CI writes on that same cable, so we
+# write VCP 0x62 (audio speaker volume) directly.
+#
+# Many monitors accept DDC writes but return garbage on reads. So this never
+# asks the monitor what the volume is -- the level is cached locally per display
+# and we only ever write.
+#
+# When the active output device isn't a DDC-controllable display, everything
+# falls through to normal macOS volume, so the same keys keep working elsewhere.
+
+set -euo pipefail
+
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/fixaudio/config"
+# shellcheck source=/dev/null
+[[ -r "$CONFIG_FILE" ]] && source "$CONFIG_FILE"
+
+STEP_DEFAULT="${FIXAUDIO_STEP:-6}"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/fixaudio"
+
+M1DDC="$(command -v m1ddc || echo /opt/homebrew/bin/m1ddc)"
+SAS="$(command -v SwitchAudioSource || echo /opt/homebrew/bin/SwitchAudioSource)"
+
+mkdir -p "$STATE_DIR"
+
+die() { echo "$*" >&2; exit 1; }
+
+# --- display discovery -------------------------------------------------------
+
+# `m1ddc display list` prints lines like:  [1] CF791 (F3D83D02-...)
+ddc_display_names() {
+  "$M1DDC" display list 2>/dev/null | sed -n 's/^\[[0-9]*\] \(.*\) (.*)$/\1/p'
+}
+
+# Index of the DDC display matching $1, or empty. Audio device names and display
+# names normally match exactly; we fall back to a substring match either way
+# round for the monitors that append things like " (DisplayPort)".
+ddc_index_for() {
+  local want="$1" idx=0 name
+  while IFS= read -r name; do
+    idx=$((idx + 1))
+    [[ "$name" == "$want" ]] && { echo "$idx"; return 0; }
+  done < <(ddc_display_names)
+
+  idx=0
+  while IFS= read -r name; do
+    idx=$((idx + 1))
+    if [[ -n "$name" ]] && { [[ "$want" == *"$name"* ]] || [[ "$name" == *"$want"* ]]; }; then
+      echo "$idx"; return 0
+    fi
+  done < <(ddc_display_names)
+
+  return 1
+}
+
+current_output() { "$SAS" -c 2>/dev/null || true; }
+
+# --- routing -----------------------------------------------------------------
+#
+# Resolved once per invocation into ROUTE / DISPLAY_IDX / DEVICE.
+
+ROUTE=""
+DISPLAY_IDX=""
+DEVICE=""
+
+resolve_route() {
+  [[ -n "$ROUTE" ]] && return 0
+
+  DEVICE="${FIXAUDIO_DEVICE_HINT:-$(current_output)}"
+
+  # Callers that already know the answer (the hotkey layer resolves it once per
+  # device change, not once per keypress) can skip the lookup.
+  case "${FIXAUDIO_ROUTE:-}" in
+    mac) ROUTE="mac"; return 0 ;;
+  esac
+
+  if [[ -n "$DEVICE" ]] && DISPLAY_IDX="$(ddc_index_for "$DEVICE")"; then
+    ROUTE="ddc"
+  else
+    ROUTE="mac"
+    DISPLAY_IDX=""
+  fi
+}
+
+on_ddc() { resolve_route; [[ "$ROUTE" == "ddc" ]]; }
+
+# --- state (per display) -----------------------------------------------------
+
+# printf, not echo: echo's trailing newline is outside the allowed set and would
+# become a trailing underscore in the filename.
+slug() { printf '%s' "$1" | tr -cs 'A-Za-z0-9._-' '_'; }
+
+vol_file()  { echo "$STATE_DIR/$(slug "$DEVICE").volume"; }
+mute_file() { echo "$STATE_DIR/$(slug "$DEVICE").muted"; }
+
+read_vol() {
+  local f v
+  f="$(vol_file)"
+  if [[ -r "$f" ]]; then
+    v="$(cat "$f")"
+    [[ "$v" =~ ^[0-9]+$ ]] && { echo "$v"; return; }
+  fi
+  echo "${FIXAUDIO_DEFAULT_VOLUME:-35}"
+}
+
+write_vol() { echo "$1" > "$(vol_file)"; }
+is_muted()  { [[ -f "$(mute_file)" ]]; }
+
+clamp() {
+  local v=$1
+  (( v < 0 )) && v=0
+  (( v > 100 )) && v=100
+  echo "$v"
+}
+
+# Push a level to the monitor. Never reads back.
+push() { "$M1DDC" display "$DISPLAY_IDX" set volume "$1" >/dev/null 2>&1; }
+
+# --- macOS fallback ----------------------------------------------------------
+
+mac_vol_get() { osascript -e 'output volume of (get volume settings)'; }
+mac_vol_set() { osascript -e "set volume output volume $1"; }
+mac_muted()   { [[ "$(osascript -e 'output muted of (get volume settings)')" == "true" ]]; }
+mac_mute()    { osascript -e "set volume output muted $1"; }
+
+# --- commands ----------------------------------------------------------------
+
+cmd_set() {
+  local target
+  target="$(clamp "$1")"
+  resolve_route
+
+  if [[ "$ROUTE" == "ddc" ]]; then
+    push "$target" || die "DDC write failed on '$DEVICE'. Run: ddcvol doctor"
+    write_vol "$target"
+    rm -f "$(mute_file)"   # an explicit level implies unmute
+  else
+    mac_vol_set "$target"
+  fi
+  echo "$target"
+}
+
+cmd_change() {
+  local delta=$1 cur new
+  resolve_route
+
+  if [[ "$ROUTE" == "ddc" ]]; then
+    cur="$(read_vol)"
+    new="$(clamp $(( cur + delta )))"
+    push "$new" || die "DDC write failed on '$DEVICE'. Run: ddcvol doctor"
+    write_vol "$new"
+    rm -f "$(mute_file)"   # nudging while muted unmutes onto the new level
+  else
+    cur="$(mac_vol_get)"
+    new="$(clamp $(( cur + delta )))"
+    mac_vol_set "$new"
+    mac_mute false
+  fi
+  echo "$new"
+}
+
+cmd_mute_toggle() {
+  resolve_route
+
+  if [[ "$ROUTE" == "ddc" ]]; then
+    if is_muted; then
+      rm -f "$(mute_file)"
+      push "$(read_vol)" || true
+      echo "unmuted"
+    else
+      touch "$(mute_file)"
+      # Write level 0 rather than DDC's mute VCP (0x8D): far more monitors
+      # honour a level write, and it keeps one code path we know works.
+      push 0 || true
+      echo "muted"
+    fi
+  else
+    if mac_muted; then mac_mute false; echo "unmuted"; else mac_mute true; echo "muted"; fi
+  fi
+}
+
+# Re-assert the cached level. Monitors forget it across sleep, input changes and
+# replugging, and their own buttons move it behind our back.
+cmd_sync() {
+  resolve_route
+  if [[ "$ROUTE" == "ddc" ]]; then
+    if is_muted; then push 0; else push "$(read_vol)"; fi
+    echo "synced $DEVICE -> $(cmd_status_value)"
+  else
+    echo "not on a DDC display; nothing to sync"
+  fi
+}
+
+cmd_status_value() {
+  resolve_route
+  if [[ "$ROUTE" == "ddc" ]]; then
+    if is_muted; then echo "muted"; else read_vol; fi
+  else
+    if mac_muted; then echo "muted"; else mac_vol_get; fi
+  fi
+}
+
+cmd_status() {
+  resolve_route
+  echo "device:  ${DEVICE:-unknown}"
+  if [[ "$ROUTE" == "ddc" ]]; then
+    echo "route:   DDC (display $DISPLAY_IDX)"
+  else
+    echo "route:   macOS"
+  fi
+  echo "volume:  $(cmd_status_value)"
+}
+
+# Diagnostics for people setting this up on their own hardware.
+cmd_doctor() {
+  echo "== dependencies =="
+  for tool in "$M1DDC" "$SAS"; do
+    if [[ -x "$tool" ]]; then echo "  ok      $tool"; else echo "  MISSING $tool"; fi
+  done
+
+  echo
+  echo "== DDC displays =="
+  local names
+  names="$(ddc_display_names)"
+  if [[ -z "$names" ]]; then
+    echo "  none found."
+    echo "  m1ddc cannot see a display. On Apple Silicon, DDC does not work over"
+    echo "  every port; try a different cable or port (USB-C/DisplayPort is most"
+    echo "  reliable)."
+  else
+    echo "$names" | sed 's/^/  /'
+  fi
+
+  echo
+  echo "== audio outputs =="
+  "$SAS" -a -t output 2>/dev/null | sed 's/^/  /'
+
+  echo
+  echo "== current route =="
+  resolve_route
+  echo "  device: ${DEVICE:-unknown}"
+  echo "  route:  $ROUTE${DISPLAY_IDX:+ (display $DISPLAY_IDX)}"
+
+  if [[ "$ROUTE" == "ddc" ]]; then
+    echo
+    echo "== DDC read channel =="
+    local v c r
+    v="$("$M1DDC" display "$DISPLAY_IDX" get volume 2>/dev/null || echo err)"
+    c="$("$M1DDC" display "$DISPLAY_IDX" get contrast 2>/dev/null || echo err)"
+    r="$("$M1DDC" display "$DISPLAY_IDX" get red 2>/dev/null || echo err)"
+    echo "  volume=$v contrast=$c red=$r"
+    if [[ "$v" == "$c" && "$c" == "$r" ]]; then
+      echo "  Reads look BROKEN (every code returns the same value)."
+      echo "  That is fine and expected on many monitors -- this tool never"
+      echo "  reads, it caches the level locally and only writes."
+    else
+      echo "  Reads look healthy."
+    fi
+    echo
+    echo "  To confirm writes work, run:  ddcvol set 20   then   ddcvol set 60"
+    echo "  and listen. If the volume changes, you are all set."
+  fi
+}
+
+usage() {
+  cat <<EOF
+ddcvol - volume for DDC/CI monitors (and macOS everywhere else)
+
+  ddcvol up   [step]   raise volume (default step $STEP_DEFAULT)
+  ddcvol down [step]   lower volume
+  ddcvol set  <0-100>  set absolute level
+  ddcvol mute          toggle mute
+  ddcvol sync          re-push the cached level to the monitor
+  ddcvol status        show current route and level
+  ddcvol route         print 'ddc' or 'mac' for the current output
+  ddcvol doctor        diagnose DDC support on this machine
+EOF
+}
+
+case "${1:-}" in
+  up)      cmd_change "${2:-$STEP_DEFAULT}" ;;
+  down)    cmd_change "-${2:-$STEP_DEFAULT}" ;;
+  set)     cmd_set "${2:?need a level 0-100}" ;;
+  mute)    cmd_mute_toggle ;;
+  sync)    cmd_sync ;;
+  status)  cmd_status ;;
+  route)   resolve_route; echo "$ROUTE" ;;
+  doctor)  cmd_doctor ;;
+  ""|-h|--help|help) usage ;;
+  *) echo "unknown command: $1" >&2; usage >&2; exit 2 ;;
+esac
