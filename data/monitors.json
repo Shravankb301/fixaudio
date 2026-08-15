@@ -13,11 +13,11 @@
           "connection": "Built-in HDMI",
           "ddc_visible": true,
           "volume": "works",
+          "writes": "works",
+          "by": "Shravankb301",
+          "issue": 1,
           "reads": "broken",
-          "notes": "Every VCP code reads back 110 and max volume reports -128, but writes land reliably and audibly. Needs a write-only tool.",
-          "by": "maintainer",
-          "date": "2026-08-14",
-          "writes": "works"
+          "notes": "Every VCP code reads back 110 and max volume reports -128, but writes land reliably and audibly. Needs a write-only tool."
         }
       ]
     }
