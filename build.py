@@ -1,17 +1,28 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Will It DDC? — Does your monitor&#x27;s volume work on a Mac?</title>
-<meta name="description" content="Find out whether your monitor supports DDC volume control on macOS. A crowdsourced compatibility list of monitor, Mac and connection combinations.">
-<link rel="canonical" href="https://shravankb301.github.io/willitddc/">
-<meta property="og:title" content="Will It DDC? — Does your monitor&#x27;s volume work on a Mac?">
-<meta property="og:description" content="Find out whether your monitor supports DDC volume control on macOS. A crowdsourced compatibility list of monitor, Mac and connection combinations.">
-<meta property="og:url" content="https://shravankb301.github.io/willitddc/">
-<meta property="og:type" content="website">
-<meta name="twitter:card" content="summary">
-<style>
+#!/usr/bin/env python3
+"""Generate the Will It DDC? site from data/monitors.json.
+
+Output is committed, so the host needs no build step:
+
+    python3 build.py
+
+Every monitor gets its own page. That's the whole point -- each model number is
+a search query someone types when their volume slider greys out.
+"""
+
+import json
+import os
+import shutil
+from html import escape
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(ROOT, "data", "monitors.json")
+OUT = os.path.join(ROOT, "docs")
+
+SITE = "https://shravankb301.github.io/willitddc"
+REPO = "https://github.com/shravankb301/willitddc"
+CHECK_CMD = "curl -fsSL https://raw.githubusercontent.com/shravankb301/willitddc/main/check.sh | bash"
+
+CSS = """
 :root{--bg:#0c0d10;--raised:#14161b;--sunken:#08090b;--line:#24272f;--soft:#1b1e25;
 --text:#e8eaed;--dim:#9aa1ad;--faint:#6b7280;--ok:#6ee7a8;--okdim:#2f6b4f;
 --warn:#f0b866;--bad:#f0806c;
@@ -70,11 +81,94 @@ font-size:15px}
 footer{padding:38px 0 70px;border-top:1px solid var(--soft);color:var(--faint);
 font-size:14px;display:flex;gap:20px;flex-wrap:wrap}
 .back{font-size:14px;color:var(--faint);margin-bottom:26px;display:block}
-</style>
+"""
+
+COPY_JS = """
+document.querySelectorAll('.copy').forEach(function(b){
+  b.addEventListener('click',async function(){
+    var t=b.parentElement.querySelector('.c').textContent;
+    try{await navigator.clipboard.writeText(t)}catch(e){
+      var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);
+      a.select();document.execCommand('copy');a.remove()}
+    b.textContent='Copied';b.classList.add('done');
+    setTimeout(function(){b.textContent='Copy';b.classList.remove('done')},1600)})});
+"""
+
+
+def page(title, desc, body, canonical, extra_js=""):
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{escape(title)}</title>
+<meta name="description" content="{escape(desc)}">
+<link rel="canonical" href="{canonical}">
+<meta property="og:title" content="{escape(title)}">
+<meta property="og:description" content="{escape(desc)}">
+<meta property="og:url" content="{canonical}">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<style>{CSS}</style>
 </head>
 <body>
 <div class="wrap">
+{body}
+</div>
+<script>{COPY_JS}{extra_js}</script>
+</body>
+</html>
+"""
 
+
+def cmdbox(cmd):
+    return (f'<div class="cmd"><pre><span class="p">$ </span>'
+            f'<span class="c">{escape(cmd)}</span></pre>'
+            f'<button class="copy">Copy</button></div>')
+
+
+def verdict(v):
+    return {
+        "works": '<span class="yes">Works</span>',
+        "no": '<span class="no">No</span>',
+    }.get(v, '<span class="unk">Untested</span>')
+
+
+def reads_cell(r):
+    if r == "broken":
+        return '<span class="pill broken">reads broken</span>'
+    if r == "ok":
+        return '<span class="pill">reads ok</span>'
+    return '<span class="unk">—</span>'
+
+
+def monitor_name(m):
+    return f"{m['brand']} {m['model']}"
+
+
+# --- index -------------------------------------------------------------------
+
+def build_index(monitors):
+    rows = []
+    for m in monitors:
+        for r in m["reports"]:
+            rows.append(
+                '<tr data-s="{s}">'
+                '<td class="m"><a href="m/{slug}.html">{name}</a></td>'
+                '<td>{mac}</td><td>{conn}</td><td>{vol}</td><td>{reads}</td>'
+                "</tr>".format(
+                    s=escape(f"{monitor_name(m)} {m.get('aka','')} {r['mac']} {r['connection']}".lower()),
+                    slug=m["slug"],
+                    name=escape(monitor_name(m)),
+                    mac=escape(r["mac"]),
+                    conn=escape(r["connection"]),
+                    vol=verdict(r["volume"]),
+                    reads=reads_cell(r["reads"]),
+                )
+            )
+
+    count = sum(len(m["reports"]) for m in monitors)
+    body = f"""
 <header>
   <div class="eyebrow">macOS · Apple Silicon</div>
   <h1>Will it DDC?</h1>
@@ -83,30 +177,30 @@ font-size:14px;display:flex;gap:20px;flex-wrap:wrap}
     you can fix that depends on your exact monitor, your exact Mac, and which
     port you used &mdash; and nobody documents it. So let's document it.
   </p>
-  <div class="cmd"><pre><span class="p">$ </span><span class="c">curl -fsSL https://raw.githubusercontent.com/shravankb301/willitddc/main/check.sh | bash</span></pre><button class="copy">Copy</button></div>
+  {cmdbox(CHECK_CMD)}
   <p class="sub">Installs nothing but a diagnostic. Prints a report you can paste.</p>
 </header>
 
 <section>
   <h2>What people have found so far</h2>
   <p>
-    1 verified report. Every row is real
+    {count} verified report{'s' if count != 1 else ''}. Every row is real
     diagnostic output from a real machine &mdash; nothing is inferred or
     guessed, which is why this list is short.
-    <a href="https://github.com/shravankb301/willitddc/issues/new?template=report.yml">Add yours</a>.
+    <a href="{REPO}/issues/new?template=report.yml">Add yours</a>.
   </p>
   <input id="filter" type="search" placeholder="Filter by monitor, Mac, or connection…" autocomplete="off">
   <div class="tw">
     <table>
       <thead><tr><th>Monitor</th><th>Mac</th><th>Connection</th><th>Volume</th><th>DDC reads</th></tr></thead>
       <tbody id="rows">
-        <tr data-s="samsung cf791 c34f791 mac mini (m4) built-in hdmi"><td class="m"><a href="m/samsung-cf791.html">Samsung CF791</a></td><td>Mac mini (M4)</td><td>Built-in HDMI</td><td><span class="yes">Works</span></td><td><span class="pill broken">reads broken</span></td></tr>
+        {chr(10).join(rows)}
       </tbody>
     </table>
   </div>
   <div class="empty" id="noresults" style="display:none">
     No match yet &mdash; which means nobody has reported that combination.
-    <a href="https://github.com/shravankb301/willitddc/issues/new?template=report.yml">Be the first</a>.
+    <a href="{REPO}/issues/new?template=report.yml">Be the first</a>.
   </div>
 </section>
 
@@ -156,7 +250,7 @@ font-size:14px;display:flex;gap:20px;flex-wrap:wrap}
     like this they appear broken even though the monitor is fully controllable.
     If your report comes back <span class="pill broken">reads broken</span>,
     that's the bucket you're in &mdash; and it's fixable with a tool that never
-    reads. <a href="https://github.com/shravankb301/willitddc">There's one in this repo</a>.
+    reads. <a href="{REPO}">There's one in this repo</a>.
   </p>
 </section>
 
@@ -168,7 +262,7 @@ font-size:14px;display:flex;gap:20px;flex-wrap:wrap}
     Installs <a href="https://github.com/waydabber/m1ddc">m1ddc</a> via Homebrew
     if you don't have it, asks your display a few harmless questions, and prints
     a report. It changes no settings.
-    <a href="https://github.com/shravankb301/willitddc/blob/main/check.sh">Read it first</a> &mdash; it's short.
+    <a href="{REPO}/blob/main/check.sh">Read it first</a> &mdash; it's short.
   </p>
 
   <h3 class="q">My monitor isn't listed. What do I do?</h3>
@@ -192,28 +286,19 @@ font-size:14px;display:flex;gap:20px;flex-wrap:wrap}
   <p>
     It started because one Samsung ultrawide wouldn't behave and the answer took
     an evening to find. It's open source and the data is
-    <a href="https://github.com/shravankb301/willitddc/blob/main/data/monitors.json">a JSON file you can read</a>.
+    <a href="{REPO}/blob/main/data/monitors.json">a JSON file you can read</a>.
   </p>
 </section>
 
 <footer>
-  <a href="https://github.com/shravankb301/willitddc">GitHub</a>
-  <a href="https://github.com/shravankb301/willitddc/issues/new?template=report.yml">Submit a report</a>
-  <a href="https://github.com/shravankb301/willitddc/blob/main/data/monitors.json">Raw data</a>
+  <a href="{REPO}">GitHub</a>
+  <a href="{REPO}/issues/new?template=report.yml">Submit a report</a>
+  <a href="{REPO}/blob/main/data/monitors.json">Raw data</a>
   <span>MIT</span>
 </footer>
+"""
 
-</div>
-<script>
-document.querySelectorAll('.copy').forEach(function(b){
-  b.addEventListener('click',async function(){
-    var t=b.parentElement.querySelector('.c').textContent;
-    try{await navigator.clipboard.writeText(t)}catch(e){
-      var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);
-      a.select();document.execCommand('copy');a.remove()}
-    b.textContent='Copied';b.classList.add('done');
-    setTimeout(function(){b.textContent='Copy';b.classList.remove('done')},1600)})});
-
+    filter_js = """
 var f=document.getElementById('filter'),rows=document.getElementById('rows'),
 nr=document.getElementById('noresults');
 f.addEventListener('input',function(){
@@ -222,6 +307,119 @@ f.addEventListener('input',function(){
     var hit=!q||tr.dataset.s.indexOf(q)>-1;
     tr.style.display=hit?'':'none';if(hit)shown++});
   nr.style.display=shown?'none':'block'});
-</script>
-</body>
-</html>
+"""
+
+    return page(
+        "Will It DDC? — Does your monitor's volume work on a Mac?",
+        "Find out whether your monitor supports DDC volume control on macOS. "
+        "A crowdsourced compatibility list of monitor, Mac and connection combinations.",
+        body, SITE + "/", filter_js)
+
+
+# --- per-monitor -------------------------------------------------------------
+
+def build_monitor(m):
+    name = monitor_name(m)
+    rows = "".join(
+        '<tr><td>{mac}</td><td>{conn}</td><td>{vol}</td><td>{reads}</td><td>{macos}</td></tr>'.format(
+            mac=escape(r["mac"]), conn=escape(r["connection"]),
+            vol=verdict(r["volume"]), reads=reads_cell(r["reads"]),
+            macos=escape(r.get("macos", "—")))
+        for r in m["reports"])
+
+    notes = "".join(
+        f'<div class="callout"><p><strong>{escape(r["mac"])}, {escape(r["connection"])}:</strong> '
+        f'{escape(r["notes"])}</p></div>'
+        for r in m["reports"] if r.get("notes"))
+
+    works = any(r["volume"] == "works" for r in m["reports"])
+    broken_reads = any(r["reads"] == "broken" for r in m["reports"])
+
+    if works and broken_reads:
+        verdict_text = (
+            f"<strong>Yes, with the right tool.</strong> The {escape(name)} accepts DDC "
+            "volume commands, but lies when asked about its current state. Apps that read "
+            "before writing will look broken; a write-only tool works fine.")
+    elif works:
+        verdict_text = f"<strong>Yes.</strong> The {escape(name)} accepts DDC volume commands."
+    else:
+        verdict_text = (f"Not established yet for the {escape(name)} &mdash; "
+                        "the reports below are what we have.")
+
+    aka = f'<p>Also sold as {escape(m["aka"])}.</p>' if m.get("aka") else ""
+
+    body = f"""
+<header>
+  <a class="back" href="../">← Will It DDC?</a>
+  <h1>Does the {escape(name)} support volume control on a Mac?</h1>
+  <p class="lede">{verdict_text}</p>
+  {aka}
+</header>
+
+<section>
+  <h2>Verified reports</h2>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Mac</th><th>Connection</th><th>Volume</th><th>DDC reads</th><th>macOS</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+  </div>
+  {notes}
+  <p>
+    Different Mac or port than the ones listed? The answer can change with both.
+    <a href="{REPO}/issues/new?template=report.yml">Add your result</a>.
+  </p>
+</section>
+
+<section>
+  <h2>Check your own setup</h2>
+  <p>Same monitor doesn't guarantee the same result &mdash; the port matters as much as the panel.</p>
+  {cmdbox(CHECK_CMD)}
+</section>
+
+<footer>
+  <a href="../">All monitors</a>
+  <a href="{REPO}">GitHub</a>
+  <a href="{REPO}/issues/new?template=report.yml">Submit a report</a>
+  <span>MIT</span>
+</footer>
+"""
+
+    desc = (f"Does the {name} support DDC volume control on macOS? "
+            "Verified reports by Mac model and connection type.")
+    return page(f"{name} — DDC volume control on Mac? | Will It DDC?",
+                desc, body, f"{SITE}/m/{m['slug']}.html")
+
+
+def main():
+    data = json.load(open(DATA))
+    monitors = sorted(data["monitors"], key=lambda m: (m["brand"], m["model"]))
+
+    if os.path.isdir(OUT):
+        shutil.rmtree(OUT)
+    os.makedirs(os.path.join(OUT, "m"), exist_ok=True)
+
+    with open(os.path.join(OUT, "index.html"), "w") as f:
+        f.write(build_index(monitors))
+
+    for m in monitors:
+        with open(os.path.join(OUT, "m", m["slug"] + ".html"), "w") as f:
+            f.write(build_monitor(m))
+
+    # sitemap: every model page is a search landing surface, so make them findable
+    urls = [f"{SITE}/"] + [f"{SITE}/m/{m['slug']}.html" for m in monitors]
+    with open(os.path.join(OUT, "sitemap.xml"), "w") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
+        for u in urls:
+            f.write(f"  <url><loc>{u}</loc></url>\n")
+        f.write("</urlset>\n")
+
+    with open(os.path.join(OUT, "robots.txt"), "w") as f:
+        f.write(f"User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n")
+
+    print(f"built {len(monitors)} monitor page(s), {len(urls)} urls")
+
+
+if __name__ == "__main__":
+    main()

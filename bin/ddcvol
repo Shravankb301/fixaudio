@@ -266,6 +266,48 @@ cmd_doctor() {
   fi
 }
 
+# A paste-ready block for the compatibility database. Deliberately contains no
+# serial numbers or anything else identifying -- people paste this in public.
+cmd_report() {
+  local mac chip macos display idx v c r reads vol
+
+  mac="$(sysctl -n hw.model 2>/dev/null || echo unknown)"
+  chip="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo unknown)"
+  macos="$(sw_vers -productVersion 2>/dev/null || echo unknown)"
+
+  resolve_route
+  display="${DEVICE:-none}"
+  idx="${DISPLAY_IDX:-}"
+
+  if [[ "$ROUTE" == "ddc" ]]; then
+    v="$("$M1DDC" display "$idx" get volume 2>/dev/null || echo err)"
+    c="$("$M1DDC" display "$idx" get contrast 2>/dev/null || echo err)"
+    r="$("$M1DDC" display "$idx" get red 2>/dev/null || echo err)"
+    if [[ "$v" == "$c" && "$c" == "$r" ]]; then reads="broken"; else reads="ok"; fi
+    vol="untested"
+  else
+    reads="n/a"
+    vol="n/a"
+  fi
+
+  cat <<EOF
+--- will-it-ddc report ---
+mac_model:   $mac
+chip:        $chip
+macos:       $macos
+display:     $display
+ddc_visible: $([[ "$ROUTE" == "ddc" ]] && echo yes || echo no)
+reads:       $reads   (volume=$v contrast=$c red=$r)
+volume:      $vol
+--- end report ---
+
+Connection (fill in): HDMI / DisplayPort / USB-C / Thunderbolt dock
+Volume test: run 'ddcvol set 20' then 'ddcvol set 70' and say whether it changed.
+
+Submit at: https://github.com/shravankb301/willitddc/issues/new?template=report.yml
+EOF
+}
+
 usage() {
   cat <<EOF
 ddcvol - volume for DDC/CI monitors (and macOS everywhere else)
@@ -278,6 +320,7 @@ ddcvol - volume for DDC/CI monitors (and macOS everywhere else)
   ddcvol status        show current route and level
   ddcvol route         print 'ddc' or 'mac' for the current output
   ddcvol doctor        diagnose DDC support on this machine
+  ddcvol report        print a paste-ready report for the compatibility database
 EOF
 }
 
@@ -290,6 +333,7 @@ case "${1:-}" in
   status)  cmd_status ;;
   route)   resolve_route; echo "$ROUTE" ;;
   doctor)  cmd_doctor ;;
+  report)  cmd_report ;;
   ""|-h|--help|help) usage ;;
   *) echo "unknown command: $1" >&2; usage >&2; exit 2 ;;
 esac

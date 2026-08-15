@@ -1,0 +1,71 @@
+name: Monitor report
+description: Tell us whether DDC works on your monitor, so the next person gets an answer
+title: "[report] "
+labels: ["report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks — this is the whole point of the project.
+
+        If you haven't run the check yet:
+
+        ```
+        curl -fsSL https://raw.githubusercontent.com/shravankb301/willitddc/main/check.sh | bash
+        ```
+
+  - type: input
+    id: monitor
+    attributes:
+      label: Monitor
+      description: Brand and model, as printed on the monitor or its box.
+      placeholder: Samsung CF791
+    validations:
+      required: true
+
+  - type: textarea
+    id: report
+    attributes:
+      label: Report output
+      description: Paste the whole `--- will-it-ddc report ---` block.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection
+    attributes:
+      label: How is it connected?
+      options:
+        - Built-in HDMI port on the Mac
+        - USB-C / Thunderbolt straight to the monitor
+        - DisplayPort
+        - Through a dock or hub
+        - Through a KVM
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: volume
+    attributes:
+      label: Did the volume actually change?
+      description: >
+        Set sound output to the monitor, then run `m1ddc set volume 20` and
+        `m1ddc set volume 70`. This is the part that matters most.
+      options:
+        - "Yes — the volume changed"
+        - "No — no change at all"
+        - "Haven't tested it"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else?
+      description: >
+        Odd behaviour, a dock model, something that only works after a replug —
+        all useful. Optional.
+    validations:
+      required: false

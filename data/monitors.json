@@ -1,0 +1,24 @@
+{
+  "_comment": "Only verified reports go in here. Never add a monitor we haven't seen real diagnostic output for.",
+  "monitors": [
+    {
+      "slug": "samsung-cf791",
+      "brand": "Samsung",
+      "model": "CF791",
+      "aka": "C34F791",
+      "reports": [
+        {
+          "mac": "Mac mini (M4)",
+          "macos": "26.3.1",
+          "connection": "Built-in HDMI",
+          "ddc_visible": true,
+          "volume": "works",
+          "reads": "broken",
+          "notes": "Every VCP code reads back 110 and max volume reports -128, but writes land reliably and audibly. Needs a write-only tool.",
+          "by": "maintainer",
+          "date": "2026-08-14"
+        }
+      ]
+    }
+  ]
+}

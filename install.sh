@@ -1,13 +1,13 @@
 #!/bin/bash
 # fixaudio installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/shravankb301/fixaudio/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/shravankb301/willitddc/main/install.sh | bash
 #
 # or, from a clone:  ./install.sh
 
 set -euo pipefail
 
-REPO="${FIXAUDIO_REPO:-shravankb301/fixaudio}"
+REPO="${FIXAUDIO_REPO:-shravankb301/willitddc}"
 BRANCH="${FIXAUDIO_BRANCH:-main}"
 BIN_DIR="${FIXAUDIO_BIN_DIR:-$HOME/.local/bin}"
 HS_DIR="$HOME/.hammerspoon"
